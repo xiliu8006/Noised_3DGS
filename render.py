@@ -31,10 +31,11 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     makedirs(conf_path, exist_ok=True)
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        rendering = render(view, gaussians, pipeline, background)["render"]
+        rendering = render(view, gaussians, pipeline, background, render_scale=True)["render"]
         gt = view.original_image[0:3, :, :]
         conf = rendering.clone()
         conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
+        prinf(conf.max)
         conf = conf / conf.max()
         conf = 1-conf
         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))

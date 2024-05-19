@@ -76,32 +76,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-
+        
+        if iteration < opt.densify_until_iter - 10000:
+            while('_DSC' in viewpoint_cam.image_name):
+                # print("please pop a new camera: ", len(viewpoint_stack))
+                if not viewpoint_stack:
+                    viewpoint_stack = scene.getTrainCameras().copy()
+                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+            
         gt_image = viewpoint_cam.original_image.cuda()
         lr_image = viewpoint_cam.lr_image.cuda()
 
-        # pixel_weight = torch.ones_like(gt_image)
-        # no_train_flag = False
-        # ref_flag = False
-        # weight = 1.0
-        # if '_DSC' in viewpoint_cam.image_name:
-        #     weight = 1.0
-        #     ref_flag = True
-        # else:
-        #     pixel_weight = (gt_image - lr_image)**2
-        #     pixel_weight[pixel_weight < 0.09] = 0
-
-        #     if iteration < opt.densify_until_iter - 8000:
-        #         pixel_weight = weight * pixel_weight
-        #         # no_train_flag = True
-        #     # elif iteration > 24000:
-        #     #    no_train_flag = True
-        #     else:
-        #         # weight = 0.5 * max(0.0001, 1 / (iteration - opt.densify_until_iter + 3000 + 1))
-        #         # pixel_weight = weight * pixel_weight
-        #         no_train_flag = True
-        # if no_train_flag:
-        #     continue
+        pixel_weight = torch.ones_like(gt_image)
 
 
         # Render
@@ -111,18 +97,22 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         bg = torch.rand((3), device="cuda") if opt.random_background else background
 
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
-        render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        conf, _, _, _ = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
-        conf = conf / conf.max()
-        conf = 1-conf
-        pixel_weight = conf
-        if '_DSC' in viewpoint_cam.image_name:
-            pixel_weight[:, :] = 1
-        # Ll1 = l1_loss(image, gt_image)
-        # print('pixel: ', pixel_weight)
-        Ll1 = l1_loss_pixel_weight(image, gt_image, pixel_weight.detach())
+        
+        if not '_DSC' in viewpoint_cam.image_name:
+            with torch.no_grad():
+                render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg)
+                conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+                conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
+                conf = conf / conf.max()
+                pixel_weight = conf
+
+        # # Ll1 = l1_loss(image, gt_image)
+        pixel_weight = pixel_weight.detach()
+        image = image * pixel_weight
+        gt_image = gt_image * pixel_weight
+        Ll1 = l1_loss(image, gt_image)
+        # Ll1 = l1_loss_pixel_weight(image, gt_image, pixel_weight.detach())
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         # loss = weight * loss
         # Ll1 = l1_loss_pixel_weight(image, gt_image, pixel_weight)
