@@ -100,10 +100,15 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
         
-        image = Image.open(image_path)
+        if os.path.exists(image_path):
+            image = Image.open(image_path)
+        else:
+            continue
 
         lr_image_name = image_name
-        lr_image_path = image_path.replace("images", "lr_images")
+        # no need:
+        # lr_image_path = image_path.replace("images", "lr_images")
+        lr_image_path = image_path
         lr_image = Image.open(lr_image_path)
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
@@ -184,6 +189,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
     return scene_info
+
+
 
 def readCamerasFromTransforms(path, transformsfile, white_background, extension=".png"):
     cam_infos = []

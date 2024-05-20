@@ -78,7 +78,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         
         if iteration < opt.densify_until_iter - 10000:
-            while('_DSC' in viewpoint_cam.image_name):
+            while('frame' in viewpoint_cam.image_name):
                 # print("please pop a new camera: ", len(viewpoint_stack))
                 if not viewpoint_stack:
                     viewpoint_stack = scene.getTrainCameras().copy()
@@ -99,13 +99,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
-        if not '_DSC' in viewpoint_cam.image_name:
-            with torch.no_grad():
-                render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg)
-                conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-                conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
-                conf = conf / conf.max()
-                pixel_weight = conf
+        # if not 'frame' in viewpoint_cam.image_name:
+        #     with torch.no_grad():
+        #         render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg)
+        #         conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+        #         conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
+        #         conf = conf / conf.max()
+        #         pixel_weight = conf
 
         # # Ll1 = l1_loss(image, gt_image)
         pixel_weight = pixel_weight.detach()
