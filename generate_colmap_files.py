@@ -1,6 +1,8 @@
 import copy
 import os
-def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_path, output_images_path, output_cameras_path):
+import shutil
+
+def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_path, output_images_path, output_cameras_path, pc_path):
     def read_camera_data(file_path, camera_id = 1):
         camera_info = None
         comments = []
@@ -72,8 +74,10 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
     # Write the output images.txt
     os.makedirs(output_images_path, exist_ok=True)
     os.makedirs(output_cameras_path, exist_ok=True)
+    output_dir = output_images_path
     output_cameras_path = os.path.join(output_cameras_path, "cameras.txt")
     output_images_path = os.path.join(output_images_path, "images.txt")
+    output_point_cloud_path = os.path.join(pc_path, "points3D.txt")
     with open(output_images_path, 'w') as file:
         for comment in image_comments1:
             file.write(comment + '\n')
@@ -87,17 +91,22 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
         file.write(camera1 + '\n')
         if camera_id_offset == 1:
             file.write(camera2 + '\n')
+    
+    shutil.copy(output_point_cloud_path, output_dir)
 
 # Usage example
-for scene_dir in os.listdir("/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-colmap"):
-    merge_images_and_cameras(
-        f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-colmap/{scene_dir}/sparse/0_svd/images.txt',
-        f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_3/{scene_dir}/train/input/sparse/0/images.txt',
-        f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
-        f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_3/{scene_dir}/train/input/sparse/0/cameras.txt',
-        f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-colmap/{scene_dir}/sparse/0',
-        f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-colmap/{scene_dir}/sparse/0'
-    )
+case_list = [3, 9]
+for case in case_list:
+    for scene_dir in os.listdir(f"/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap"):
+        merge_images_and_cameras(
+            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/images.txt',
+            f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_{case}/{scene_dir}/train/input/sparse/0/images.txt',
+            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
+            f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_{case}/{scene_dir}/train/input/sparse/0/cameras.txt',
+            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0',
+            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0',
+            f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_{case}/{scene_dir}/'
+        )
 
 
 # Usage example
