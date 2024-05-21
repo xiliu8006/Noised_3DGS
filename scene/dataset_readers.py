@@ -109,13 +109,13 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
         if os.path.exists(image_path):
-            if "ref_frame" in image_name:
-                gt_path = "/data/chaoyi/dataset/DL3DV"
-                scene = get_longest_name_field(images_folder)
-                image_name_all = os.path.basename(image_path)
-                frame_start = image_name_all.find("frame")
-                image_name_all = image_name_all[frame_start:]
-                image_path = os.path.join(gt_path, scene, 'images',image_name_all)
+            # if "ref_frame" in image_name:
+                # gt_path = "/scratch/xi9/DATASET/DL3DV"
+                # scene = get_longest_name_field(images_folder)
+                # image_name_all = os.path.basename(image_path)
+                # frame_start = image_name_all.find("frame")
+                # image_name_all = image_name_all[frame_start:]
+                # image_path = os.path.join(gt_path, scene, 'images',image_name_all)
             image = Image.open(image_path)
         else:
             continue

@@ -37,11 +37,11 @@ def copy_and_move_images(source_dir, destination_dir, video_dir):
                 file_path = os.path.join(video_dir, subdir,"points3D.txt")
                 shutil.copy(file_path, sparse_dir)
 
-
-
-source_dir = "/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-adain-consistency/samples"
-destination_dir = "/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-3-colmap"
-video_dir = "/data/chaoyi/dataset/DL3DV-10K/1K_pairset_3"
+case_list = [3, 6, 9, 12]
+for case in case_list
+    source_dir = f"/scratch/xi9/code/3DGS_SD_SR/outputs/Ref-{case}-adain-consistency/samples"
+    destination_dir = f"/scratch/xi9/DATASET/DL3DV-colmap/Ref-3-colmap"
+    video_dir = f"/data/chaoyi/dataset/DL3DV-10K/1K_pairset_3"
 
 copy_and_move_images(source_dir, destination_dir, video_dir)
 print("复制和移动完成！")
