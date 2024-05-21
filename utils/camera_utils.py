@@ -20,7 +20,10 @@ def loadCam(args, id, cam_info, resolution_scale):
     orig_w, orig_h = cam_info.image.size
 
     if args.resolution in [1, 2, 4, 8]:
-        resolution = round(orig_w/(resolution_scale * args.resolution)), round(orig_h/(resolution_scale * args.resolution))
+        if orig_h !=512:
+            resolution = round(orig_w/(resolution_scale * args.resolution)), round(orig_h/(resolution_scale * args.resolution))
+        else:
+            resolution = int(orig_w), int(orig_h)
     else:  # should be a type that converts to float
         if args.resolution == -1:
             if orig_w > 1600:
