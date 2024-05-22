@@ -45,6 +45,23 @@ class SceneInfo(NamedTuple):
     nerf_normalization: dict
     ply_path: str
 
+def topk_(matrix, K, axis=1):
+    if axis == 0:
+        row_index = np.arange(matrix.shape[1 - axis])
+        topk_index = np.argpartition(-matrix, K, axis=axis)[0:K, :]
+        topk_data = matrix[topk_index, row_index]
+        topk_index_sort = np.argsort(-topk_data,axis=axis)
+        topk_data_sort = topk_data[topk_index_sort,row_index]
+        topk_index_sort = topk_index[0:K,:][topk_index_sort,row_index]
+    else:
+        column_index = np.arange(matrix.shape[1 - axis])[:, None]
+        topk_index = np.argpartition(-matrix, K, axis=axis)[:, 0:K]
+        topk_data = matrix[column_index, topk_index]
+        topk_index_sort = np.argsort(-topk_data, axis=axis)
+        topk_data_sort = topk_data[column_index, topk_index_sort]
+        topk_index_sort = topk_index[:,0:K][column_index,topk_index_sort]
+    return topk_data_sort
+
 def getNerfppNorm(cam_info):
     def get_center_and_diag(cam_centers):
         cam_centers = np.hstack(cam_centers)
@@ -109,13 +126,13 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
         if os.path.exists(image_path):
-            # if "ref_frame" in image_name:
-                # gt_path = "/scratch/xi9/DATASET/DL3DV"
-                # scene = get_longest_name_field(images_folder)
-                # image_name_all = os.path.basename(image_path)
-                # frame_start = image_name_all.find("frame")
-                # image_name_all = image_name_all[frame_start:]
-                # image_path = os.path.join(gt_path, scene, 'images',image_name_all)
+            if "ref_frame" in image_name:
+                gt_path = "/scratch/xi9/DATASET/DL3DV"
+                scene = get_longest_name_field(images_folder)
+                image_name_all = os.path.basename(image_path)
+                frame_start = image_name_all.find("frame")
+                image_name_all = image_name_all[frame_start:]
+                image_path = os.path.join(gt_path, scene, 'images',image_name_all)
             image = Image.open(image_path)
         else:
             continue
@@ -186,17 +203,39 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    if not os.path.exists(ply_path):
-        print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+    rand_pcd = True
+    if rand_pcd:
+        print('Init random point cloud.')
+        ply_path = os.path.join(path, "sparse/0/points3D_random.ply")
+        bin_path = os.path.join(path, "sparse/0/points3D.bin")
+        txt_path = os.path.join(path, "sparse/0/points3D.txt")
+
         try:
             xyz, rgb, _ = read_points3D_binary(bin_path)
         except:
             xyz, rgb, _ = read_points3D_text(txt_path)
-        storePly(ply_path, xyz, rgb)
-    try:
-        pcd = fetchPly(ply_path)
-    except:
-        pcd = None
+        print(xyz.max(0), xyz.min(0))
+
+        pcd_shape = (topk_(xyz, 1, 0)[-1] + topk_(-xyz, 1, 0)[-1])
+        num_pts = int(pcd_shape.max() * 50)
+        xyz = np.random.random((num_pts, 3)) * pcd_shape * 1.3 - topk_(-xyz, 20, 0)[-1]
+        print(pcd_shape)
+        print(f"Generating random point cloud ({num_pts})...")
+        shs = np.random.random((num_pts, 3)) / 255.0
+        pcd = BasicPointCloud(points=xyz, colors=SH2RGB(shs), normals=np.zeros((num_pts, 3)))
+        storePly(ply_path, xyz, SH2RGB(shs) * 255)
+    else:
+        if not os.path.exists(ply_path):
+            print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
+            try:
+                xyz, rgb, _ = read_points3D_binary(bin_path)
+            except:
+                xyz, rgb, _ = read_points3D_text(txt_path)
+            storePly(ply_path, xyz, rgb)
+        try:
+            pcd = fetchPly(ply_path)
+        except:
+            pcd = None
 
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,

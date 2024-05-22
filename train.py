@@ -76,13 +76,23 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        # print("iteration times: ",iteration < opt.densify_until_iter - 10000)
         
-        if iteration < opt.densify_until_iter - 10000:
-            while('frame' in viewpoint_cam.image_name):
-                # print("please pop a new camera: ", len(viewpoint_stack))
+        if iteration < opt.densify_until_iter - 11000:
+            while('frame' not in viewpoint_cam.image_name):
                 if not viewpoint_stack:
                     viewpoint_stack = scene.getTrainCameras().copy()
                 viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        else:
+            count = 0
+            reduce_num = 10
+            while('frame' not in viewpoint_cam.image_name and count<=reduce_num):
+                if not viewpoint_stack:
+                    viewpoint_stack = scene.getTrainCameras().copy()
+                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+                count += 1
+
+
             
         gt_image = viewpoint_cam.original_image.cuda()
         lr_image = viewpoint_cam.lr_image.cuda()
@@ -99,11 +109,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
+        # print("image name: ", viewpoint_cam.image_name)
         # if not 'frame' in viewpoint_cam.image_name:
         #     with torch.no_grad():
-        #         render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg)
+        #         render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_scale=True)
         #         conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         #         conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
+        #         # print(conf.max(), conf.mean(), conf.min())
+        #         conf = torch.clamp(conf, 0, conf.mean())
         #         conf = conf / conf.max()
         #         pixel_weight = conf
 
