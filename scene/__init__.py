@@ -39,8 +39,9 @@ class Scene:
 
         self.train_cameras = {}
         self.test_cameras = {}
-        self.real_train_cameras = {}
+        self.ref_camera_pos = {}
         
+
         if os.path.exists(os.path.join(args.source_path, "sparse")):
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval)
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
@@ -72,6 +73,13 @@ class Scene:
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")
             self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args)
+            
+            # self.real_train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
+            self.ref_camera_pos[resolution_scale] = [int(camera.image_name[:5]) for camera in self.train_cameras[resolution_scale] if 'ref_frame' in camera.image_name]
+            self.ref_camera_pos[resolution_scale].sort()
+            # self.ref_train_casmeras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
+            # self.train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if not 'frame' in camera.image_name]
+
             print("Loading Test Cameras")
             self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
 
@@ -92,3 +100,22 @@ class Scene:
 
     def getTestCameras(self, scale=1.0):
         return self.test_cameras[scale]
+    
+    def getImageWeight(self, target, scale=1.0,):
+        nearest_integer = min(self.ref_camera_pos[scale], key=lambda x: abs(x - target))  # 找到与目标整数最接近的整数
+        min_distance = abs(nearest_integer - target)  # 计算最小距离
+        weight = min_distance / self.ref_camera_pos[scale][1] - self.ref_camera_pos[scale][1]
+        return weight
+
+
+    
+    # def 
+    
+    # def getRealTrainCameras(self, scale=1.0):
+    #     return self.real_train_cameras[scale]
+    
+    # def updateRealTrainCameras(self, camera_id, scale=1.0):
+    #     camera = self.train_cameras[scale].pop(camera_id)
+    #     print("real_train_cameras info: ", len(self.real_train_cameras[scale]), camera_id)
+    #     self.real_train_cameras[scale].append(camera)
+    

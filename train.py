@@ -76,29 +76,37 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if not viewpoint_stack:
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        # print("iteration times: ",iteration < opt.densify_until_iter - 10000)
         
-        if iteration < opt.densify_until_iter - 11000:
-            while('frame' not in viewpoint_cam.image_name):
-                if not viewpoint_stack:
-                    viewpoint_stack = scene.getTrainCameras().copy()
-                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        else:
-            count = 0
-            reduce_num = 10
-            while('frame' not in viewpoint_cam.image_name and count<=reduce_num):
-                if not viewpoint_stack:
-                    viewpoint_stack = scene.getTrainCameras().copy()
-                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-                count += 1
+        
+        # if iteration < opt.densify_until_iter - 11000:
+        while('frame' not in viewpoint_cam.image_name):
+            if not viewpoint_stack:
+                viewpoint_stack = scene.getTrainCameras().copy()
+            viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        # else:
+        #     count = 0
+        #     reduce_num = 10
+        #     while('frame' not in viewpoint_cam.image_name and count<=reduce_num):
+        #         if not viewpoint_stack:
+        #             viewpoint_stack = scene.getTrainCameras().copy()
+        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        #         count += 1
+        
+        # weight = 1.0
 
+        # if not "frame" in viewpoint_cam.image_name:
+        #     weight = scene.getImageWeight(int(viewpoint_cam.image_name[:5]))
 
+        # if not viewpoint_stack:
+        #     viewpoint_stack = scene.getRealTrainCameras().copy()
+        # viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+
+        
             
         gt_image = viewpoint_cam.original_image.cuda()
         lr_image = viewpoint_cam.lr_image.cuda()
 
-        pixel_weight = torch.ones_like(gt_image)
-
+        pixel_weight = torch.ones(gt_image.shape[1], gt_image.shape[2]).to(gt_image.device)
 
         # Render
         if (iteration - 1) == debug_from:
@@ -119,6 +127,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         #         conf = torch.clamp(conf, 0, conf.mean())
         #         conf = conf / conf.max()
         #         pixel_weight = conf
+                # pixel_weight [conf < 0.1] = 0
 
         # # Ll1 = l1_loss(image, gt_image)
         pixel_weight = pixel_weight.detach()
