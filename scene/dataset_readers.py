@@ -22,6 +22,8 @@ from pathlib import Path
 from plyfile import PlyData, PlyElement
 from utils.sh_utils import SH2RGB
 from scene.gaussian_model import BasicPointCloud
+from scipy.spatial.transform import Rotation as R
+from scipy.interpolate import interp1d
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -190,6 +192,11 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     reading_dir = "images" if images == None else images
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
+    
+    # only for rendering
+    num_samples = 300
+    output_folder = path
+    cam_infos = smooth_trajectory(cam_infos, num_samples, output_folder)
 
     if eval:
         train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
@@ -323,6 +330,104 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
     return scene_info
+
+def slerp(p0, p1, t):
+    """ Spherical linear interpolation between two quaternions """
+    dot = np.dot(p0, p1)
+    if dot < 0.0:
+        p1 = -p1
+        dot = -dot
+
+    DOT_THRESHOLD = 0.9995
+    if dot > DOT_THRESHOLD:
+        result = p0 + t * (p1 - p0)
+        return result / np.linalg.norm(result)
+
+    theta_0 = np.arccos(dot)
+    theta = theta_0 * t
+
+    p1_orth = p1 - dot * p0
+    p1_orth /= np.linalg.norm(p1_orth)
+
+    return np.cos(theta) * p0 + np.sin(theta) * p1_orth
+
+def interpolate_poses(poses, num_samples):
+    quaternions, translations = zip(*poses)
+    quaternions = np.array(quaternions)
+    translations = np.array(translations)
+
+    t = np.linspace(0, 1, len(poses))
+    t_new = np.linspace(0, 1, num_samples)
+
+    interp_trans = interp1d(t, translations, axis=0, kind='cubic')
+    trans_new = interp_trans(t_new)
+
+    quats_new = []
+    for i in range(num_samples):
+        idx = np.searchsorted(t, t_new[i])
+        if idx == 0:
+            quats_new.append(quaternions[0])
+        elif idx == len(t):
+            quats_new.append(quaternions[-1])
+        else:
+            q0 = quaternions[idx - 1]
+            q1 = quaternions[idx]
+            local_t = (t_new[i] - t[idx - 1]) / (t[idx] - t[idx - 1])
+            quats_new.append(slerp(q0, q1, local_t))
+
+    return list(zip(quats_new, trans_new))
+
+def generate_image_names(num_samples, prefix="00000"):
+    return [f"{prefix}{i:05d}.jpg" for i in range(num_samples)]
+
+def smooth_trajectory(camera_info_list, num_samples: int, output_folder: str):
+    # Extract the poses (rotation as quaternion and translation) and image paths
+    poses = []
+    image_path = camera_info_list[1].image_path  # Use the image path from the first CameraInfo
+    image_name = camera_info_list[1].image_name
+
+    for camera_info in camera_info_list:
+        rotation_quat = R.from_matrix(camera_info.R).as_quat()
+        translation = camera_info.T
+        poses.append((rotation_quat, translation))
+    
+    # Interpolate the poses
+    smooth_poses = interpolate_poses(poses, num_samples)
+    
+    # Generate new image names
+    new_image_names = generate_image_names(num_samples)
+    
+    # # Ensure output directory exists
+    # if not os.path.exists(output_folder):
+    #     os.makedirs(output_folder)
+    
+    # # Copy images with new names
+    # for i, new_name in enumerate(new_image_names):
+    #     new_image_path = os.path.join(output_folder, new_name)
+    #     shutil.copy(image_path, new_image_path)
+    
+    # Save smooth poses to a new file
+    smooth_camera_info_list = []
+    for i, (quat, trans) in enumerate(smooth_poses):
+        rotation_matrix = R.from_quat(quat).as_matrix()
+        camera_info = CameraInfo(
+            uid=i + 1,
+            R=rotation_matrix,
+            T=trans,
+            FovY=camera_info_list[1].FovY,
+            FovX=camera_info_list[1].FovX,
+            image=camera_info_list[1].image,  # Image data is not copied, only paths
+            lr_image=camera_info_list[1].lr_image,
+            image_path=image_path,
+            image_name=new_image_names[i],
+            lr_image_path=camera_info_list[1].lr_image_path,
+            lr_image_name=camera_info_list[1].lr_image_name,
+            width=camera_info_list[1].width,
+            height=camera_info_list[1].height
+        )
+        smooth_camera_info_list.append(camera_info)
+    
+    return smooth_camera_info_list
 
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,
