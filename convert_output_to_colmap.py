@@ -75,8 +75,8 @@ def copy_and_move_images(source_dir, destination_dir, video_dir):
 
 case_list = [3, 6, 9, 12]
 for case in case_list:
-    source_dir = f"/scratch/xi9/code/3DGS_SD_SR/outputs/Ref-{case}-adain-all-consistency-recolor/samples"
-    destination_dir = f"/scratch/xi9/DATASET/DL3DV-COLMAP-recolor/Ref-{case}-colmap"
+    source_dir = f"/scratch/xi9/code/3DGS_SD_SR/outputs/Ref-{case}-reweight-all-consistency-recolor/samples"
+    destination_dir = f"/scratch/xi9/DATASET/DL3DV-COLMAP-recolor/Ref-{case}-colmap-reweight"
     video_dir = f"/scratch/xi9/DATASET/DL3DV-COLMAP/Ref-{case}-colmap"
     copy_and_move_images(source_dir, destination_dir, video_dir)
 

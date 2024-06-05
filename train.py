@@ -78,22 +78,21 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         
         
-        # if iteration < opt.densify_until_iter - 11000:
-        while('frame' not in viewpoint_cam.image_name):
-            if not viewpoint_stack:
-                viewpoint_stack = scene.getTrainCameras().copy()
-            viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        # else:
-        #     count = 0
-        #     reduce_num = 10
-        #     while('frame' not in viewpoint_cam.image_name and count<=reduce_num):
-        #         if not viewpoint_stack:
-        #             viewpoint_stack = scene.getTrainCameras().copy()
-        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        #         count += 1
+        if iteration < opt.densify_until_iter - 11000:
+            while('frame' not in viewpoint_cam.image_name):
+                if not viewpoint_stack:
+                    viewpoint_stack = scene.getTrainCameras().copy()
+                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        else:
+            count = 0
+            reduce_num = 10
+            while('frame' not in viewpoint_cam.image_name and count<=reduce_num):
+                if not viewpoint_stack:
+                    viewpoint_stack = scene.getTrainCameras().copy()
+                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+                count += 1
         
-        # weight = 1.0
-
+        weight = 1.0
         # if not "frame" in viewpoint_cam.image_name:
         #     weight = scene.getImageWeight(int(viewpoint_cam.image_name[:5]))
 
@@ -130,18 +129,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 # pixel_weight [conf < 0.1] = 0
 
         # # Ll1 = l1_loss(image, gt_image)
-        pixel_weight = pixel_weight.detach()
-        image = image * pixel_weight
-        gt_image = gt_image * pixel_weight
+        # pixel_weight = pixel_weight.detach()
+        # image = image * pixel_weight
+        # gt_image = gt_image * pixel_weight
         Ll1 = l1_loss(image, gt_image)
-        # Ll1 = l1_loss_pixel_weight(image, gt_image, pixel_weight.detach())
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
-        # loss = weight * loss
-        # Ll1 = l1_loss_pixel_weight(image, gt_image, pixel_weight)
-        # if ref_flag:
-        #     loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
-        # else:
-        #     loss = Ll1
+        loss = weight * loss
 
         loss.backward()
 
