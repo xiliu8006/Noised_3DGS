@@ -97,24 +97,24 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         #         count += 1
         # print("image name: ", viewpoint_cam.image_name)
-        # if iteration < opt.densify_until_iter - 11000:
-        #     while(len(viewpoint_cam.image_name) == 4):
-        #         if not viewpoint_stack:
-        #             viewpoint_stack = scene.getTrainCameras().copy()
-        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        # else:
-        #     count = 0
-        #     reduce_num = 10
-        #     while(len(viewpoint_cam.image_name) == 4 and count<=reduce_num):
-        #         if not viewpoint_stack:
-        #             viewpoint_stack = scene.getTrainCameras().copy()
-        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        #         count += 1
+        if iteration < opt.densify_until_iter - 11000:
+            while(len(viewpoint_cam.image_name) == 4):
+                if not viewpoint_stack:
+                    viewpoint_stack = scene.getTrainCameras().copy()
+                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        else:
+            count = 0
+            reduce_num = 10
+            while(len(viewpoint_cam.image_name) == 4 and count<=reduce_num):
+                if not viewpoint_stack:
+                    viewpoint_stack = scene.getTrainCameras().copy()
+                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+                count += 1
         # print("why do not print image name????: ", viewpoint_cam.image_name)
         
         weight = 1.0
-        if len(viewpoint_cam.image_name) == 4:
-            weight = scene.getImageWeight(int(viewpoint_cam.image_name))
+        # if len(viewpoint_cam.image_name) == 4:
+        #     weight = scene.getImageWeight(int(viewpoint_cam.image_name))
 
         
             
@@ -133,21 +133,21 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
         # print("image name: ", viewpoint_cam.image_name)
-        if len(viewpoint_cam.image_name) == 4:
-            with torch.no_grad():
-                render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_scale=True)
-                conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-                conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
-                # print(conf.max(), conf.mean(), conf.min())
-                conf = torch.clamp(conf, 0, conf.mean())
-                conf = conf / conf.max()
-                pixel_weight = conf
+        # if len(viewpoint_cam.image_name) == 4:
+        #     with torch.no_grad():
+        #         render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_scale=True)
+        #         conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+        #         conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
+        #         # print(conf.max(), conf.mean(), conf.min())
+        #         conf = torch.clamp(conf, 0, conf.mean())
+        #         conf = conf / conf.max()
+        #         pixel_weight = conf
                 # pixel_weight [conf < 0.1] = 0
 
         # # Ll1 = l1_loss(image, gt_image)
-        pixel_weight = pixel_weight.detach()
-        image = image * pixel_weight
-        gt_image = gt_image * pixel_weight
+        # pixel_weight = pixel_weight.detach()
+        # image = image * pixel_weight
+        # gt_image = gt_image * pixel_weight
         Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         loss = weight * loss
@@ -161,7 +161,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
-                progress_bar.set_postfix({"weight": f"{weight:.{3}f}"})
+                # progress_bar.set_postfix({"weight": f"{weight:.{3}f}"})
                 progress_bar.update(10)
             if iteration == opt.iterations:
                 progress_bar.close()
