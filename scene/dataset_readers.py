@@ -94,7 +94,19 @@ def get_longest_name_field(path):
     
     return longest_field
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
+def remove_extra_extension(file_path):
+    # 获取路径的目录和文件名
+    directory, filename = os.path.split(file_path)
+    # 分离文件名和后缀
+    name, extension = os.path.splitext(filename)
+    # 判断是否有两个后缀
+    if '.' in name:
+        # 分离文件名和第一个后缀
+        name, _ = os.path.splitext(name)
+    # 重新构建路径并返回
+    return os.path.join(directory, name + extension)
+
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, eval_mode=False):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -111,7 +123,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         R = np.transpose(qvec2rotmat(extr.qvec))
         T = np.array(extr.tvec)
 
-        if intr.model=="SIMPLE_PINHOLE":
+        if intr.model=="SIMPLE_PINHOLE" or intr.model=="SIMPLE_RADIAL":
             focal_length_x = intr.params[0]
             FovY = focal2fov(focal_length_x, height)
             FovX = focal2fov(focal_length_x, width)
@@ -124,16 +136,21 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
+        image_path = remove_extra_extension(image_path)
         image_name = os.path.basename(image_path).split(".")[0]
         if os.path.exists(image_path):
-            if "ref_frame" in image_name:
-                gt_path = "/scratch/xi9/DATASET/DL3DV"
-                scene = get_longest_name_field(images_folder)
-                image_name_all = os.path.basename(image_path)
-                frame_start = image_name_all.find("frame")
-                image_name_all = image_name_all[frame_start:]
-                image_path = os.path.join(gt_path, scene, 'images',image_name_all)
-            image = Image.open(image_path)
+            if len(os.path.basename(image_path)) > 9:
+                gt_path = "/project/siyuh/common/xiliu/LLFF/llff/nerf_llff_data"
+                p = Path(images_folder)
+                scene = p.parts[-2]
+                new_filename = os.path.basename(image_path)
+                new_filename = new_filename[5:]
+                if eval_mode:
+                    image_path = image_path
+                else:
+                   image_path = os.path.join(gt_path, scene, 'images', new_filename)
+                # print("we have ref views: ", image_path)
+            image = open_image(image_path)
         else:
             continue
 
@@ -141,12 +158,13 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         # no need:
         # lr_image_path = image_path.replace("images", "lr_images")
         lr_image_path = image_path
-        lr_image = Image.open(lr_image_path)
+        lr_image = open_image(lr_image_path)
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               lr_image=lr_image, image_path=image_path, image_name=image_name, 
                               lr_image_path=lr_image_path, lr_image_name=lr_image_name, width=width, height=height)
         cam_infos.append(cam_info)
+    sys.stdout.write(f'cameras num: {len(cam_infos)}')
     sys.stdout.write('\n')
     return cam_infos
 
@@ -188,7 +206,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
     reading_dir = "images" if images == None else images
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), eval_mode=eval)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
@@ -323,6 +341,18 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
     return scene_info
+
+def open_image(file_name):
+    name, _ = os.path.splitext(file_name)
+    possible_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']  # 添加你认为可能的图片格式
+    for ext in possible_extensions:
+        full_path = name + ext
+        full_path_upper = name + ext.upper()
+        if os.path.isfile(full_path):
+            return Image.open(full_path)
+        elif os.path.isfile(full_path_upper):
+            return Image.open(full_path_upper)
+    raise FileNotFoundError("No image file found for {}".format(file_name))
 
 sceneLoadTypeCallbacks = {
     "Colmap": readColmapSceneInfo,

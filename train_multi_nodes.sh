@@ -4,10 +4,10 @@
 list=("3" "6" "9")
 l=8000
 for element in "${list[@]}"; do
-    directory="/scratch/xi9/DATASET/DL3DV-COLMAP-recolor/Ref-$element-colmap-reweight"
+    directory="/scratch/xi9/DATASET/LLFF-COLMAP/Ref-$element-colmap"
     for subdir in $(find "$directory" -mindepth 1 -maxdepth 1 -type d); do
         Basename=$(basename "$subdir")
-        sbatch train.sh "$subdir" "/scratch/xi9/OUTPUTS/final-version-2/Ref-$element/$Basename" $l
+        sbatch train.sh "$subdir" "/scratch/xi9/OUTPUTS/LLFF-ours/Ref-$element/$Basename" $l
         l=$((l + 1))
     done
 done

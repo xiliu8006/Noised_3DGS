@@ -75,7 +75,7 @@ class Scene:
             self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args)
             
             # self.real_train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
-            self.ref_camera_pos[resolution_scale] = [int(camera.image_name[:5]) for camera in self.train_cameras[resolution_scale] if 'ref_frame' in camera.image_name]
+            self.ref_camera_pos[resolution_scale] = [int(camera.image_name[:4]) for camera in self.train_cameras[resolution_scale] if len(camera.image_name) != 4]
             self.ref_camera_pos[resolution_scale].sort()
             # self.ref_train_casmeras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
             # self.train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if not 'frame' in camera.image_name]
@@ -104,7 +104,7 @@ class Scene:
     def getImageWeight(self, target, scale=1.0,):
         nearest_integer = min(self.ref_camera_pos[scale], key=lambda x: abs(x - target))  # 找到与目标整数最接近的整数
         min_distance = abs(nearest_integer - target)  # 计算最小距离
-        weight = min_distance / self.ref_camera_pos[scale][1] - self.ref_camera_pos[scale][1]
+        weight = min_distance / (self.ref_camera_pos[scale][1] - self.ref_camera_pos[scale][0])
         return weight
 
 

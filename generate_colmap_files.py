@@ -2,7 +2,7 @@ import copy
 import os
 import shutil
 
-def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_path, output_images_path, output_cameras_path, pc_path):
+def merge_images_and_cameras(file1_path, cameras1_path, cameras2_path, output_images_path, output_cameras_path, pc_path):
     def read_camera_data(file_path, camera_id = 1):
         camera_info = None
         comments = []
@@ -13,6 +13,8 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
                 comments.append(line)
             elif not camera_info and line.strip():
                 parts = line.split()
+                if camera_id == 2:
+                    parts[2] = str(4032)
                 parts[0] = str(camera_id)
                 print(camera_info)
                 new_line = ' '.join(parts) + '\n'
@@ -34,7 +36,7 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
                 parts = line.split()
                 image_id = int(parts[0])
                 # print(parts[9])
-                if 'ref_frame' in parts[9]:
+                if len(parts[9]) > 9:
                     print("Adjust camera ID to be either 1 or 2")
                     camera_id = 2  # Adjust camera ID to be either 1 or 2
                 else:
@@ -63,7 +65,7 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
 
     # Read camera data from both camera files
     camera1, comments1 = read_camera_data(cameras1_path)
-    camera2, comments2 = read_camera_data(cameras2_path, 2)
+    camera2, comments2 = read_camera_data(cameras1_path, 2)
 
     # Decide if a new camera ID is needed
     camera_id_offset = 0 if camera1 == camera2 else 1
@@ -77,7 +79,7 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
     output_dir = output_images_path
     output_cameras_path = os.path.join(output_cameras_path, "cameras.txt")
     output_images_path = os.path.join(output_images_path, "images.txt")
-    output_point_cloud_path = os.path.join(pc_path, "points3D.txt")
+    output_point_cloud_path = os.path.join(pc_path, "points3D.bin")
     with open(output_images_path, 'w') as file:
         for comment in image_comments1:
             file.write(comment + '\n')
@@ -95,17 +97,16 @@ def merge_images_and_cameras(file1_path, file2_path, cameras1_path, cameras2_pat
     shutil.copy(output_point_cloud_path, output_dir)
 
 # Usage example
-case_list = [3, 9]
+case_list = [3, 6, 9]
 for case in case_list:
-    for scene_dir in os.listdir(f"/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap"):
+    for scene_dir in os.listdir(f"/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap"):
         merge_images_and_cameras(
-            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/images.txt',
-            f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_{case}/{scene_dir}/train/input/sparse/0/images.txt',
-            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
-            f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_{case}/{scene_dir}/train/input/sparse/0/cameras.txt',
-            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0',
-            f'/home/liuxi/code/DATASET/DL3DV-evaluation/Ref-{case}-colmap/{scene_dir}/sparse/0',
-            f'/data/chaoyi/dataset/DL3DV-10K/1K_pairset_{case}/{scene_dir}/'
+            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/images.txt',
+            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
+            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
+            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0',
+            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0',
+            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd'
         )
 
 
