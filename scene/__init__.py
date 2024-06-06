@@ -75,8 +75,9 @@ class Scene:
             self.train_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.train_cameras, resolution_scale, args)
             
             # self.real_train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
-            self.ref_camera_pos[resolution_scale] = [int(camera.image_name[:4]) for camera in self.train_cameras[resolution_scale] if len(camera.image_name) != 4]
-            self.ref_camera_pos[resolution_scale].sort()
+            if not args.eval:
+                self.ref_camera_pos[resolution_scale] = [int(camera.image_name[:4]) for camera in self.train_cameras[resolution_scale] if len(camera.image_name) != 4]
+                self.ref_camera_pos[resolution_scale].sort()
             # self.ref_train_casmeras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
             # self.train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if not 'frame' in camera.image_name]
 

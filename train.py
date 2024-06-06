@@ -113,10 +113,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # print("why do not print image name????: ", viewpoint_cam.image_name)
         
         weight = 1.0
-        sys.stdout.write("Reading image name {}".format(viewpoint_cam.image_name))
         if len(viewpoint_cam.image_name) == 4:
             weight = scene.getImageWeight(int(viewpoint_cam.image_name))
-            sys.stdout.write("Current weight: {}".format(weight))
 
         
             
@@ -163,7 +161,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             if iteration % 10 == 0:
                 progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
-                progress_bar.set_postfix({"weight": f"{weight:.{3}f} and image name {viewpoint_cam.image_name}"})
+                progress_bar.set_postfix({"weight": f"{weight:.{3}f}"})
                 progress_bar.update(10)
             if iteration == opt.iterations:
                 progress_bar.close()

@@ -149,6 +149,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, eval_mode=F
                     image_path = image_path
                 else:
                    image_path = os.path.join(gt_path, scene, 'images', new_filename)
+                sys.stdout.write(f'get real image: {image_path}')
                 # print("we have ref views: ", image_path)
             image = open_image(image_path)
         else:
