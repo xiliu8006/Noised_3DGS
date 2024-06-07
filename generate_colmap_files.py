@@ -14,7 +14,7 @@ def merge_images_and_cameras(file1_path, cameras1_path, cameras2_path, output_im
             elif not camera_info and line.strip():
                 parts = line.split()
                 if camera_id == 2:
-                    parts[2] = str(4032)
+                    parts[2] = str(4946)
                 parts[0] = str(camera_id)
                 print(camera_info)
                 new_line = ' '.join(parts) + '\n'
