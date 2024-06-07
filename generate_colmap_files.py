@@ -99,14 +99,14 @@ def merge_images_and_cameras(file1_path, cameras1_path, cameras2_path, output_im
 # Usage example
 case_list = [3, 6, 9]
 for case in case_list:
-    for scene_dir in os.listdir(f"/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap"):
+    for scene_dir in os.listdir(f"/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap"):
         merge_images_and_cameras(
-            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/images.txt',
-            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
-            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
-            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0',
-            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0',
-            f'/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd'
+            f'/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/images.txt',
+            f'/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
+            f'/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd/cameras.txt',
+            f'/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0',
+            f'/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0',
+            f'/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap/{scene_dir}/sparse/0_svd'
         )
 
 

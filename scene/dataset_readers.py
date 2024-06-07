@@ -140,7 +140,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, eval_mode=F
         image_name = os.path.basename(image_path).split(".")[0]
         if os.path.exists(image_path):
             if len(os.path.basename(image_path)) > 9:
-                gt_path = "/project/siyuh/common/xiliu/LLFF/llff/nerf_llff_data"
+                gt_path = "/scratch/xi9/DATASET/Mipnerf360"
                 p = Path(images_folder)
                 scene = p.parts[-2]
                 new_filename = os.path.basename(image_path)
@@ -222,7 +222,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    rand_pcd = True
+    rand_pcd = False
     if rand_pcd:
         print('Init random point cloud.')
         ply_path = os.path.join(path, "sparse/0/points3D_random.ply")

@@ -75,10 +75,10 @@ def copy_and_move_images(source_dir, destination_dir, video_dir, point_dir, case
 
 case_list = [3, 6, 9]
 for case in case_list:
-    source_dir = f"/scratch/xi9/code/3DGS_SD_SR/outputs/Ref-{case}-LLFF/samples"
-    destination_dir = f"/scratch/xi9/DATASET/LLFF-COLMAP/Ref-{case}-colmap"
-    video_dir = f"/project/siyuh/common/xiliu/LLFF/llff_sparse_set"
-    point_dir = f"/project/siyuh/common/xiliu/LLFF/llff/nerf_llff_data"
+    source_dir = f"/scratch/xi9/code/3DGS_SD_SR/outputs/Ref-{case}-MipNeRF/samples"
+    destination_dir = f"/scratch/xi9/DATASET/MipNeRF-COLMAP/Ref-{case}-colmap"
+    video_dir = f"/project/siyuh/common/chaoyi/mipnerf_sparse_set_full"
+    point_dir = f"/scratch/xi9/DATASET/Mipnerf360"
     copy_and_move_images(source_dir, destination_dir, video_dir, point_dir, case)
 
 print("复制和移动完成！")
