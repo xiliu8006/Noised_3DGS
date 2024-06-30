@@ -25,22 +25,36 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
     conf_path = os.path.join(model_path, name, "ours_{}".format(iteration), "confidence")
+    fake_path = os.path.join(model_path, name, "ours_{}".format(iteration), "fake")
+    fusion_path = os.path.join(model_path, name, "ours_{}".format(iteration), "fusion")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
     makedirs(conf_path, exist_ok=True)
+    makedirs(fake_path, exist_ok=True)
+    makedirs(fusion_path, exist_ok=True)
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         rendering = render(view, gaussians, pipeline, background)["render"]
+        fake = render(view, gaussians, pipeline, background, render_mode='fake')["render"]
+        conf = render(view, gaussians, pipeline, background, render_mode='area')["render"]
+
         gt = view.original_image[0:3, :, :]
-        # conf = rendering.clone()
-        # conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
-        # prinf(conf.max)
+        conf = conf[0, :, :]
+        print(conf.max(), conf.min(), conf.mean())
+        conf = torch.clamp(conf, 0, conf.mean())
+        conf = conf / conf.max()
+        # conf = 1-conf
+        conf[conf > 0.3] = 1
+        conf[conf <= 0.3] = 0
         # conf = conf / conf.max()
         # conf = 1-conf
+        fusion = rendering + conf * fake
         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
         torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
-        # torchvision.utils.save_image(conf, os.path.join(conf_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(conf, os.path.join(conf_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(fake, os.path.join(fake_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(fusion, os.path.join(fusion_path, '{0:05d}'.format(idx) + ".png"))
 
 def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool):
     with torch.no_grad():

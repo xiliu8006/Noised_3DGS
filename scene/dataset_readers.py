@@ -139,17 +139,18 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, eval_mode=F
         image_path = remove_extra_extension(image_path)
         image_name = os.path.basename(image_path).split(".")[0]
         if os.path.exists(image_path):
-            if len(os.path.basename(image_path)) > 9:
-                gt_path = "/scratch/xi9/DATASET/Mipnerf360"
+            if 'ref' in image_path:
+                gt_path = "/scratch/xi9/DATASET/DL3DV"
+                # sys.stdout.write(f'input real image: {image_path}')
                 p = Path(images_folder)
                 scene = p.parts[-2]
                 new_filename = os.path.basename(image_path)
-                new_filename = new_filename[5:]
+                new_filename = new_filename[10:]
                 if eval_mode:
                     image_path = image_path
                 else:
                    image_path = os.path.join(gt_path, scene, 'images', new_filename)
-                sys.stdout.write(f'get real image: {image_path}')
+                # sys.stdout.write(f'get real image: {image_path} {image_path}')
                 # print("we have ref views: ", image_path)
             image = open_image(image_path)
         else:

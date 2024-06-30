@@ -77,41 +77,26 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         
-        if iteration < opt.densify_until_iter - 11000:
-            while(len(viewpoint_cam.image_name) == 4):
-                if not viewpoint_stack:
-                    viewpoint_stack = scene.getTrainCameras().copy()
-                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        
         # if iteration < opt.densify_until_iter - 11000:
-        #     while('frame' not in viewpoint_cam.image_name):
+        #     while('ref' not in viewpoint_cam.image_name):
         #         if not viewpoint_stack:
         #             viewpoint_stack = scene.getTrainCameras().copy()
         #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        # else:
-        #     count = 0
-        #     reduce_num = 10
-        #     while('frame' not in viewpoint_cam.image_name and count<=reduce_num):
-        #         if not viewpoint_stack:
-        #             viewpoint_stack = scene.getTrainCameras().copy()
-        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        #         count += 1
-        # print("image name: ", viewpoint_cam.image_name)
+        
         if iteration < opt.densify_until_iter - 11000:
-            while(len(viewpoint_cam.image_name) == 4):
+            while('ref' not in viewpoint_cam.image_name):
                 if not viewpoint_stack:
                     viewpoint_stack = scene.getTrainCameras().copy()
                 viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         else:
             count = 0
             reduce_num = 10
-            while(len(viewpoint_cam.image_name) == 4 and count<=reduce_num):
+            while('ref' not in viewpoint_cam.image_name and count<=reduce_num):
                 if not viewpoint_stack:
                     viewpoint_stack = scene.getTrainCameras().copy()
                 viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
                 count += 1
-        # print("why do not print image name????: ", viewpoint_cam.image_name)
-        
+        # print("image name: ", viewpoint_cam.image_name)
         weight = 1.0
         # if len(viewpoint_cam.image_name) == 4:
         #     weight = scene.getImageWeight(int(viewpoint_cam.image_name))
@@ -133,16 +118,23 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
         # print("image name: ", viewpoint_cam.image_name)
-        # if len(viewpoint_cam.image_name) == 4:
-        #     with torch.no_grad():
-        #         render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_scale=True)
-        #         conf, _, _, _ = render_pkg_conf["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        #         conf = ((conf[0,:,:] * conf[1,:,:] * conf[2,:,:])**(1/3))
-        #         # print(conf.max(), conf.mean(), conf.min())
-        #         conf = torch.clamp(conf, 0, conf.mean())
-        #         conf = conf / conf.max()
-        #         pixel_weight = conf
-                # pixel_weight [conf < 0.1] = 0
+        if 'ref' not in viewpoint_cam.image_name:
+            # with torch.no_grad():
+            render_pkg_fake = render(viewpoint_cam, gaussians, pipe, bg, render_mode='fake')
+            fake_image, _, _, _ = render_pkg_fake["render"], render_pkg_fake["viewspace_points"], render_pkg_fake["visibility_filter"], render_pkg_fake["radii"]
+            with torch.no_grad():
+                render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_mode='area')
+                conf, _, _, _ = render_pkg_conf["render"], render_pkg_conf["viewspace_points"], render_pkg_conf["visibility_filter"], render_pkg_conf["radii"]
+                print(conf.max(), conf.mean(), conf.min())
+                conf = conf[0, :, :]
+                conf = torch.clamp(conf, 0, 15000)
+                conf = conf / conf.max()
+                # conf[conf > 0.3]= 1
+                # conf[conf <= 0.3] = 0
+                pixel_weight = conf.detach()
+            image = (image + fake_image ) * pixel_weight
+            gt_image = gt_image * pixel_weight
+            # image = image + pixel_weight * fake_image 
 
         # # Ll1 = l1_loss(image, gt_image)
         # pixel_weight = pixel_weight.detach()
