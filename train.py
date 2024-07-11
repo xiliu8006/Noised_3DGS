@@ -28,7 +28,8 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, \
+             use_dual=False, use_conf=False):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
@@ -77,12 +78,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         
-        # if iteration < opt.densify_until_iter - 11000:
-        #     while('ref' not in viewpoint_cam.image_name):
-        #         if not viewpoint_stack:
-        #             viewpoint_stack = scene.getTrainCameras().copy()
-        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        
         if iteration < opt.densify_until_iter - 11000:
             while('ref' not in viewpoint_cam.image_name):
                 if not viewpoint_stack:
@@ -96,7 +91,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     viewpoint_stack = scene.getTrainCameras().copy()
                 viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
                 count += 1
-        # print("image name: ", viewpoint_cam.image_name)
         weight = 1.0
         # if len(viewpoint_cam.image_name) == 4:
         #     weight = scene.getImageWeight(int(viewpoint_cam.image_name))
@@ -118,28 +112,25 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         
         # print("image name: ", viewpoint_cam.image_name)
-        if 'ref' not in viewpoint_cam.image_name:
-            render_pkg_fake = render(viewpoint_cam, gaussians, pipe, bg, render_mode='fake')
-            fake_image, _, _, _ = render_pkg_fake["render"], render_pkg_fake["viewspace_points"], render_pkg_fake["visibility_filter"], render_pkg_fake["radii"]
-            with torch.no_grad():
-                render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_mode='area')
-                conf, _, _, _ = render_pkg_conf["render"], render_pkg_conf["viewspace_points"], render_pkg_conf["visibility_filter"], render_pkg_conf["radii"]
-                print(conf.max(), conf.mean(), conf.min())
-                conf = conf[0, :, :]
-                conf = torch.clamp(conf, 0, 15000)
-                conf = conf / conf.max()
-                # conf[conf > 0.3]= 1
-                # conf[conf <= 0.3] = 0
-                pixel_weight = conf.detach()
-            # image = (image + fake_image ) * pixel_weight
-            image = image + pixel_weight * fake_image
-        #     gt_image = gt_image * pixel_weight
-            # image = image + pixel_weight * fake_image 
+        if use_dual:
+            if 'ref' not in viewpoint_cam.image_name:
+                render_pkg_fake = render(viewpoint_cam, gaussians, pipe, bg, render_mode='fake')
+                fake_image, _, _, _ = render_pkg_fake["render"], render_pkg_fake["viewspace_points"], render_pkg_fake["visibility_filter"], render_pkg_fake["radii"]
+                if use_conf:
+                    with torch.no_grad():
+                        render_pkg_conf = render(viewpoint_cam, gaussians, pipe, bg, render_mode='area')
+                        conf, _, _, _ = render_pkg_conf["render"], render_pkg_conf["viewspace_points"], render_pkg_conf["visibility_filter"], render_pkg_conf["radii"]
+                        print(conf.max(), conf.mean(), conf.min())
+                        conf = conf[0, :, :]
+                        conf = torch.clamp(conf, 0, 15000)
+                        conf = conf / conf.max()
+                        # conf[conf > 0.3]= 1
+                        # conf[conf <= 0.3] = 0
+                        pixel_weight = conf.detach()
+                    image = image + pixel_weight * fake_image
+                else:
+                    image = image + fake_image
 
-        # # Ll1 = l1_loss(image, gt_image)
-        # pixel_weight = pixel_weight.detach()
-        # image = image * pixel_weight
-        # gt_image = gt_image * pixel_weight
         Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         loss = weight * loss
@@ -260,6 +251,8 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
+    parser.add_argument("--use_dual", action="store_true")
+    parser.add_argument("--use_conf", action="store_true")
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
@@ -271,7 +264,8 @@ if __name__ == "__main__":
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
+    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, \
+             args.start_checkpoint, args.debug_from, use_dual=args.use_dual, use_conf=args.use_conf)
 
     # All done
     print("\nTraining complete.")

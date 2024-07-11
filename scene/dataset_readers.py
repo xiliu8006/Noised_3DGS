@@ -127,7 +127,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, eval_mode=F
             focal_length_x = intr.params[0]
             FovY = focal2fov(focal_length_x, height)
             FovX = focal2fov(focal_length_x, width)
-        elif intr.model=="PINHOLE":
+        elif intr.model=="PINHOLE" or intr.model=='OPENCV':
             focal_length_x = intr.params[0]
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
@@ -139,23 +139,9 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, eval_mode=F
         image_path = remove_extra_extension(image_path)
         image_name = os.path.basename(image_path).split(".")[0]
         if os.path.exists(image_path):
-            if 'ref' in image_path:
-                gt_path = "/scratch/xi9/DATASET/DL3DV"
-                # sys.stdout.write(f'input real image: {image_path}')
-                p = Path(images_folder)
-                scene = p.parts[-2]
-                new_filename = os.path.basename(image_path)
-                new_filename = new_filename[10:]
-                if eval_mode:
-                    image_path = image_path
-                else:
-                   image_path = os.path.join(gt_path, scene, 'images', new_filename)
-                # sys.stdout.write(f'get real image: {image_path} {image_path}')
-                # print("we have ref views: ", image_path)
             image = open_image(image_path)
         else:
             continue
-
         lr_image_name = image_name
         # no need:
         # lr_image_path = image_path.replace("images", "lr_images")
@@ -196,16 +182,25 @@ def storePly(path, xyz, rgb):
     ply_data.write(path)
 
 def readColmapSceneInfo(path, images, eval, llffhold=8):
+
     try:
-        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
-        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
-        cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
-        cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
-    except:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.txt")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.txt")
-        cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
-        cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+        if os.path.exists(cameras_extrinsic_file):
+            cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
+            cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+        else:
+            cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
+            cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
+            cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
+            cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
+    except:
+        cameras_extrinsic_file = os.path.join(path, "colmap/sparse/0", "images.bin")
+        cameras_intrinsic_file = os.path.join(path, "colmap/sparse/0", "cameras.bin")
+        cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
+        cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
+    
+    # print("camera_extrinsic_file: ", cam_extrinsics_file)
 
     reading_dir = "images" if images == None else images
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir), eval_mode=eval)
@@ -223,17 +218,23 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    rand_pcd = False
+    rand_pcd = True
     if rand_pcd:
         print('Init random point cloud.')
-        ply_path = os.path.join(path, "sparse/0/points3D_random.ply")
+        ply_path = os.path.join(path, "sparse/0/points3D.ply")
         bin_path = os.path.join(path, "sparse/0/points3D.bin")
         txt_path = os.path.join(path, "sparse/0/points3D.txt")
 
+        # try:
+            # xyz, rgb, _ = read_points3D_binary(bin_path)
+        # except:
+            # xyz, rgb, _ = read_points3D_text(ply_path)
         try:
-            xyz, rgb, _ = read_points3D_binary(bin_path)
+            pcd = fetchPly(ply_path)
         except:
-            xyz, rgb, _ = read_points3D_text(txt_path)
+            ply_path = os.path.join(path, "colmap/sparse/0/points3D.ply")
+            pcd = fetchPly(ply_path)
+        xyz = pcd.points
         print(xyz.max(0), xyz.min(0))
 
         pcd_shape = (topk_(xyz, 1, 0)[-1] + topk_(-xyz, 1, 0)[-1])
@@ -247,15 +248,17 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     else:
         if not os.path.exists(ply_path):
             print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
-            try:
-                xyz, rgb, _ = read_points3D_binary(bin_path)
-            except:
-                xyz, rgb, _ = read_points3D_text(txt_path)
-            storePly(ply_path, xyz, rgb)
-        try:
-            pcd = fetchPly(ply_path)
-        except:
-            pcd = None
+            if os.path.join(path, "colmap/sparse/0/points3D.ply"):
+                ply_path = os.path.join(path, "colmap/sparse/0/points3D.ply")
+                pcd = fetchPly(ply_path)
+            else:
+                try:
+                    xyz, rgb, _ = read_points3D_binary(bin_path)
+                except:
+                    xyz, rgb, _ = read_points3D_text(txt_path)
+                storePly(ply_path, xyz, rgb)
+                pcd = fetchPly(ply_path)
+       
 
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,

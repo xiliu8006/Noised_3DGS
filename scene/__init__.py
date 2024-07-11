@@ -41,12 +41,14 @@ class Scene:
         self.test_cameras = {}
         self.ref_camera_pos = {}
         
-
+        print("source path: ", args.source_path)
         if os.path.exists(os.path.join(args.source_path, "sparse")):
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval)
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
             print("Found transforms_train.json file, assuming Blender data set!")
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval)
+        elif os.path.exists(os.path.join(args.source_path, "colmap/sparse")):
+            scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval)
         else:
             assert False, "Could not recognize scene type!"
 
@@ -76,7 +78,7 @@ class Scene:
             
             # self.real_train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
             if not args.eval:
-                self.ref_camera_pos[resolution_scale] = [int(camera.image_name[-4:]) for camera in self.train_cameras[resolution_scale] if "ref" in camera.image_name]
+                self.ref_camera_pos[resolution_scale] = [int(camera.image_name[-9:-4]) for camera in self.train_cameras[resolution_scale] if "ref" in camera.image_name]
                 self.ref_camera_pos[resolution_scale].sort()
             # self.ref_train_casmeras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if 'frame' in camera.image_name]
             # self.train_cameras[resolution_scale] = [camera for camera in self.train_cameras[resolution_scale] if not 'frame' in camera.image_name]
