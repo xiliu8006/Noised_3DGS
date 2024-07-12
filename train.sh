@@ -16,7 +16,7 @@ source activate CFW
 
 cd /scratch/xi9/code/Noised_3DGS 
 
-python train.py -s $1 -m $2 --port $3 -r 8 --use_dual
+python train.py -s $1 -m $2 --port $3 -r 8
 python render.py -s "/scratch/xi9/Large-DATASET/DL3DV-10K/1K/$4" -m $2 -i images_4 -r 1 --eval --skip_train
 python metrics.py -m $2
 

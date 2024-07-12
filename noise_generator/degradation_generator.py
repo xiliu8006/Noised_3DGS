@@ -22,7 +22,7 @@ class DatasetProcessing(Dataset):
             channels (int): Number of channels, default is 3 for RGB.
         """
         # Define the path to the folder containing video frames
-        self.target_folder = f'/scratch/xi9/DATASET/DL3DV-960P-Benchmark-Noised/{blur_mode}'
+        self.target_folder = f'/scratch/xi9/DATASET/DL3DV-960P-Benchmark-Noised/{blur_mode}-45'
         self.ref_folder = '/scratch/xi9/Large-DATASET/DL3DV-10K/1K'
         self.scenes = set(os.listdir(self.ref_folder))
         self.kernel_list = ['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso']
@@ -109,7 +109,7 @@ class DatasetProcessing(Dataset):
 
                     elif self.blur_mode == 'motion_blur':
                         kernel_size = self.blur_kernel_size
-                        angle = random.randint(0, 180)
+                        angle = 45
                         k = np.zeros((kernel_size, kernel_size), dtype=np.float32)
                         k[(kernel_size-1)//2, :] = np.ones(kernel_size, dtype=np.float32)
                         k = cv2.warpAffine(k, cv2.getRotationMatrix2D((kernel_size/2-0.5, kernel_size/2-0.5), angle, 1.0), (kernel_size, kernel_size))

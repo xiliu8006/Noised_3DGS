@@ -108,9 +108,16 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         bg = torch.rand((3), device="cuda") if opt.random_background else background
 
+
         render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        
+        if False:
+            sample_num = 5
+            for i in range(sample_num):
+                render_pkg = render(viewpoint_cam, gaussians, pipe, bg, render_mode='gaussian_mode')
+                image_, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+                image += image_
+            image = image / (sample_num + 1)
         # print("image name: ", viewpoint_cam.image_name)
         if use_dual:
             if 'ref' not in viewpoint_cam.image_name:
@@ -132,7 +139,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     image = image + fake_image
 
         Ll1 = l1_loss(image, gt_image)
-        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + abs(0.1 * gaussians.get_mu_xyz.mean()) + abs(0.1*gaussians.get_sigma.mean())
         loss = weight * loss
 
         loss.backward()
