@@ -218,7 +218,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     ply_path = os.path.join(path, "sparse/0/points3D.ply")
     bin_path = os.path.join(path, "sparse/0/points3D.bin")
     txt_path = os.path.join(path, "sparse/0/points3D.txt")
-    rand_pcd = True
+    rand_pcd = False
     if rand_pcd:
         print('Init random point cloud.')
         ply_path = os.path.join(path, "sparse/0/points3D.ply")
@@ -230,25 +230,31 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         # except:
             # xyz, rgb, _ = read_points3D_text(ply_path)
         try:
-            pcd = fetchPly(ply_path)
+            if os.path.exists(bin_path):
+                xyz, rgb, _ = read_points3D_binary(bin_path)
+            elif os.path.exists(txt_path):
+                xyz, rgb, _ = read_points3D_text(bin_path)
+            else:
+                pcd = fetchPly(ply_path)
+                xyz = pcd.points
         except:
             ply_path = os.path.join(path, "colmap/sparse/0/points3D.ply")
             pcd = fetchPly(ply_path)
-        xyz = pcd.points
-        print(xyz.max(0), xyz.min(0))
+            xyz = pcd.points
+        print("point bound: ", xyz.max(0), xyz.min(0))
 
         pcd_shape = (topk_(xyz, 1, 0)[-1] + topk_(-xyz, 1, 0)[-1])
         num_pts = int(pcd_shape.max() * 50)
         xyz = np.random.random((num_pts, 3)) * pcd_shape * 1.3 - topk_(-xyz, 20, 0)[-1]
-        print(pcd_shape)
         print(f"Generating random point cloud ({num_pts})...")
         shs = np.random.random((num_pts, 3)) / 255.0
         pcd = BasicPointCloud(points=xyz, colors=SH2RGB(shs), normals=np.zeros((num_pts, 3)))
         storePly(ply_path, xyz, SH2RGB(shs) * 255)
     else:
+        print("current ply path: ", ply_path, os.path.exists(ply_path))
         if not os.path.exists(ply_path):
             print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
-            if os.path.join(path, "colmap/sparse/0/points3D.ply"):
+            if os.path.exists(os.path.join(path, "colmap/sparse/0/points3D.ply")):
                 ply_path = os.path.join(path, "colmap/sparse/0/points3D.ply")
                 pcd = fetchPly(ply_path)
             else:
@@ -256,10 +262,12 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
                     xyz, rgb, _ = read_points3D_binary(bin_path)
                 except:
                     xyz, rgb, _ = read_points3D_text(txt_path)
+                print("save ply as: ", ply_path)
                 storePly(ply_path, xyz, rgb)
                 pcd = fetchPly(ply_path)
+        else:
+            pcd = fetchPly(ply_path)
        
-
     scene_info = SceneInfo(point_cloud=pcd,
                            train_cameras=train_cam_infos,
                            test_cameras=test_cam_infos,

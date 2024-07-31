@@ -78,20 +78,20 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
         
-        if iteration < opt.densify_until_iter - 11000:
-            while('ref' not in viewpoint_cam.image_name):
-                if not viewpoint_stack:
-                    viewpoint_stack = scene.getTrainCameras().copy()
-                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-        else:
-            count = 0
-            reduce_num = 10
-            while('ref' not in viewpoint_cam.image_name and count<=reduce_num):
-                if not viewpoint_stack:
-                    viewpoint_stack = scene.getTrainCameras().copy()
-                viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-                count += 1
-        weight = 1.0
+        # if iteration < opt.densify_until_iter - 11000:
+        #     while('ref' not in viewpoint_cam.image_name):
+        #         if not viewpoint_stack:
+        #             viewpoint_stack = scene.getTrainCameras().copy()
+        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        # else:
+        #     count = 0
+        #     reduce_num = 10
+        #     while('ref' not in viewpoint_cam.image_name and count<=reduce_num):
+        #         if not viewpoint_stack:
+        #             viewpoint_stack = scene.getTrainCameras().copy()
+        #         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        #         count += 1
+        # weight = 1.0
         # if len(viewpoint_cam.image_name) == 4:
         #     weight = scene.getImageWeight(int(viewpoint_cam.image_name))
 
@@ -109,15 +109,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         bg = torch.rand((3), device="cuda") if opt.random_background else background
 
 
-        render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
-        image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        if False:
-            sample_num = 5
-            for i in range(sample_num):
-                render_pkg = render(viewpoint_cam, gaussians, pipe, bg, render_mode='gaussian_mode')
-                image_, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-                image += image_
-            image = image / (sample_num + 1)
+        if True:
+            render_pkg = render(viewpoint_cam, gaussians, pipe, bg, render_mode='gaussian_mode')
+            image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+        else:
+            render_pkg = render(viewpoint_cam, gaussians, pipe, bg)
+            image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         # print("image name: ", viewpoint_cam.image_name)
         if use_dual:
             if 'ref' not in viewpoint_cam.image_name:
@@ -139,8 +136,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     image = image + fake_image
 
         Ll1 = l1_loss(image, gt_image)
-        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + abs(0.1 * gaussians.get_mu_xyz.mean()) + abs(0.1*gaussians.get_sigma.mean())
-        loss = weight * loss
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+        # loss = weight * loss
 
         loss.backward()
 
@@ -165,8 +162,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # Densification
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
-                gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+                if type(visibility_filter) == list:
+                    gaussians.max_radii2D[visibility_filter[0]] = torch.max(gaussians.max_radii2D[visibility_filter[0]], radii[0][visibility_filter[0]])
+                else:
+                    gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+                    gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter, denom)
+
 
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None

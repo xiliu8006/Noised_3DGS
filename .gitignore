@@ -9,3 +9,4 @@ screenshots
 submodules/simple-knn
 models
 slurm-*
+blur_data*

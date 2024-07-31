@@ -115,6 +115,8 @@ class DatasetProcessing(Dataset):
                         k = cv2.warpAffine(k, cv2.getRotationMatrix2D((kernel_size/2-0.5, kernel_size/2-0.5), angle, 1.0), (kernel_size, kernel_size))
                         k = k * (1.0/np.sum(k))
                         img = cv2.filter2D(img, -1, k)
+                    else:
+                        img = img
                     cv2.imwrite(img=img, filename=save_file)
                 new_images.append(new_image)
             images_res = {image.id: image for image in new_images}
@@ -148,5 +150,5 @@ class DatasetProcessing(Dataset):
         raise FileNotFoundError("No image file found for {}".format(file_name))
     
 if __name__ == '__main__':
-    train_dataset = DatasetProcessing(blur_mode='motion_blur')
+    train_dataset = DatasetProcessing(blur_mode='Nonoised')
     train_dataset.copy_colmap_files()

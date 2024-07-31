@@ -17,7 +17,8 @@ source activate CFW
 cd /scratch/xi9/code/Noised_3DGS 
 
 python train.py -s $1 -m $2 --port $3 -r 8
-python render.py -s "/scratch/xi9/Large-DATASET/DL3DV-10K/1K/$4" -m $2 -i images_4 -r 1 --eval --skip_train
+# python render.py -s "/scratch/xi9/Large-DATASET/DL3DV-10K/1K/$4" -m $2 -i images_4 -r 1 --eval --skip_train
+python render.py -s "/scratch/xi9/DATASET/deblur_dataset/synthetic_camera_motion_blur/$4" -m $2 -r 1 --eval
 python metrics.py -m $2
 
 # python train.py -s /scratch/xi9/DATASET/DL3DV-COLMAP-recolor/Ref-12-colmap/bd47fd2bd339b8b286470aa40673d829ab646fb92dfc6172e70a9ee966904135 -m /scratch/xi9/OUTPUTS/max_mean_conf_and_repeat_5-recolor/Ref-12/bd47fd2bd339b8b286470aa40673d829ab646fb92dfc6172e70a9ee966904135 --port 6001

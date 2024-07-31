@@ -192,8 +192,8 @@ class GaussianModel:
 
         l = [
             {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
-            {'params': [self._sigma], 'lr': training_args.opacity_lr, "name": "sigma"},
-            {'params': [self._mu_xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "mu_xyz"},
+            {'params': [self._sigma], 'lr': training_args.scaling_lr, "name": "sigma"},
+            {'params': [self._mu_xyz], 'lr': training_args.scaling_lr, "name": "mu_xyz"},
             {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
             {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
             {'params': [self._features_fake], 'lr': training_args.feature_lr / 20.0, "name": "f_fake"},
@@ -211,7 +211,13 @@ class GaussianModel:
     def update_learning_rate(self, iteration):
         ''' Learning rate scheduling per step '''
         for param_group in self.optimizer.param_groups:
-            if param_group["name"] == "xyz":
+            if param_group["name"] == "mu_xyz":
+                lr = self.xyz_scheduler_args(iteration)
+                param_group['lr'] = lr
+            elif param_group["name"] == "sigma":
+                lr = self.xyz_scheduler_args(iteration)
+                param_group['lr'] = lr
+            elif param_group["name"] == "xyz":
                 lr = self.xyz_scheduler_args(iteration)
                 param_group['lr'] = lr
                 return lr
@@ -279,11 +285,9 @@ class GaussianModel:
             sigma[:, idx] = np.asarray(plydata.elements[0][attr_name])
         
         mu_xyz_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("mu_xyz_")]
-        # print("mu xyz name: ", mu_xyz_names)
         mu_xyz_names = sorted(mu_xyz_names, key = lambda x: int(x.split('_')[-1]))
         mu_xyz = np.zeros((xyz.shape[0], len(mu_xyz_names)))
         for idx, attr_name in enumerate(mu_xyz_names):
-            # print("idx and attr_name: ", idx, attr_name)
             mu_xyz[:, idx] = np.asarray(plydata.elements[0][attr_name])
 
         features_dc = np.zeros((xyz.shape[0], 3, 1))

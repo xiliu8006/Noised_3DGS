@@ -347,14 +347,50 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             colors_precomp = torch.clamp_min(sh2rgb, -0.5)
             # print("fake: ", colors_precomp.mean(), colors_precomp.max(), colors_precomp.min(), sh2rgb.max(), sh2rgb.min())
         elif render_mode == 'gaussian_mode':
-            new_xyz = pc.get_xyz + pc.get_mu_xyz + pc.get_sigma * torch.randn_like(pc.get_xyz)
-            # new_xyz = pc.get_xyz
-            shs_view = pc.get_features.transpose(1, 2).view(-1, 3, (pc.max_sh_degree+1)**2)
-            dir_pp = (pc.get_xyz - viewpoint_camera.camera_center.repeat(pc.get_features.shape[0], 1))
-            dir_pp_normalized = dir_pp/dir_pp.norm(dim=1, keepdim=True)
-            sh2rgb = eval_sh(pc.active_sh_degree, shs_view, dir_pp_normalized)
-            colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
-            means3D = new_xyz
+            sample_num = 5
+            shs = pc.get_features
+            rendered_image, _radii = rasterizer(
+                means3D = means3D,
+                means2D = means2D,
+                shs = shs,
+                colors_precomp = colors_precomp,
+                opacities = opacity,
+                scales = scales,
+                rotations = rotations,
+                cov3D_precomp = cov3D_precomp)
+            renders = [rendered_image]
+            viewspace_points = [screenspace_points]
+            visibility_filter = [_radii > 0]
+            radii = [_radii]
+            print("xyz len: ", len(pc.get_xyz), visibility_filter[0].sum())
+            for i in range(sample_num):
+                screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+                try:
+                    screenspace_points.retain_grad()
+                except:
+                    pass
+                means2D = screenspace_points
+                new_xyz = pc.get_xyz + pc.get_mu_xyz + pc.get_sigma * torch.randn_like(pc.get_xyz)
+                means3D = new_xyz
+                rendered_image, _radii = rasterizer(
+                    means3D = means3D,
+                    means2D = means2D,
+                    shs = shs,
+                    colors_precomp = colors_precomp,
+                    opacities = opacity,
+                    scales = scales,
+                    rotations = rotations,
+                    cov3D_precomp = cov3D_precomp)
+                renders.append(rendered_image)
+                viewspace_points.append(screenspace_points)
+                visibility_filter.append(_radii > 0)
+                radii.append(_radii)
+            
+            render = sum(renders) / len(renders)
+            return {"render": render,
+                    "viewspace_points": viewspace_points,
+                    "visibility_filter" : visibility_filter,
+                    "radii": radii}
         else:
             shs = pc.get_features
     else:
