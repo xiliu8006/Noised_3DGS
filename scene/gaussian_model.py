@@ -20,6 +20,8 @@ from utils.sh_utils import RGB2SH
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
+from .LieGroupSGD import LieGroupSGD
+from .stiefeloptimizers import StiefelAdam
 
 class GaussianModel:
 
@@ -30,10 +32,71 @@ class GaussianModel:
             symm = strip_symmetric(actual_covariance)
             return symm
         
+        def batch_quaternion_to_rotation_matrix(quaternions):
+            # Ensure quaternions are normalized
+            quaternions = self.rotation_activation(quaternions)
+            quaternions = quaternions / torch.norm(quaternions, dim=1, keepdim=True)
+            
+            w, x, y, z = quaternions[:, 0], quaternions[:, 1], quaternions[:, 2], quaternions[:, 3]
+
+            # Compute rotation matrix elements
+            R = torch.zeros((quaternions.shape[0], 3, 3), device=quaternions.device)
+            R[:, 0, 0] = 1 - 2 * (y**2 + z**2)
+            R[:, 0, 1] = 2 * (x * y - z * w)
+            R[:, 0, 2] = 2 * (x * z + y * w)
+
+            R[:, 1, 0] = 2 * (x * y + z * w)
+            R[:, 1, 1] = 1 - 2 * (x**2 + z**2)
+            R[:, 1, 2] = 2 * (y * z - x * w)
+
+            R[:, 2, 0] = 2 * (x * z - y * w)
+            R[:, 2, 1] = 2 * (y * z + x * w)
+            R[:, 2, 2] = 1 - 2 * (x**2 + y**2)
+
+            return R
+        
+        def batch_rotation_matrix_to_quaternion(rotation_matrices, atol=1e-6):
+            """
+            Convert a batch of 3x3 rotation matrices to quaternions.
+
+            Args:
+                rotation_matrices (torch.Tensor): Tensor of shape (N, 3, 3) containing rotation matrices.
+                atol (float): Tolerance for numerical stability. Values less than this will be clamped to 0.
+
+            Returns:
+                torch.Tensor: Tensor of shape (N, 4) containing quaternions (w, x, y, z).
+            """
+            # Extract elements of the rotation matrix
+            R = rotation_matrices
+            R00, R01, R02 = R[:, 0, 0], R[:, 0, 1], R[:, 0, 2]
+            R10, R11, R12 = R[:, 1, 0], R[:, 1, 1], R[:, 1, 2]
+            R20, R21, R22 = R[:, 2, 0], R[:, 2, 1], R[:, 2, 2]
+            
+            # Clamp values to ensure numerical stability
+            trace_w = torch.clamp(1.0 + R00 + R11 + R22, min=atol)
+            trace_x = torch.clamp(1.0 + R00 - R11 - R22, min=atol)
+            trace_y = torch.clamp(1.0 - R00 + R11 - R22, min=atol)
+            trace_z = torch.clamp(1.0 - R00 - R11 + R22, min=atol)
+
+            # Compute quaternion components
+            w = torch.sqrt(trace_w) / 2
+            x = torch.sign(R21 - R12) * torch.sqrt(trace_x) / 2
+            y = torch.sign(R02 - R20) * torch.sqrt(trace_y) / 2
+            z = torch.sign(R10 - R01) * torch.sqrt(trace_z) / 2
+
+            # Stack components into a quaternion
+            quaternions = torch.stack([w, x, y, z], dim=1)
+            
+            return quaternions
+
+
+        
         self.scaling_activation = torch.exp
         self.scaling_inverse_activation = torch.log
 
         self.covariance_activation = build_covariance_from_scaling_rotation
+        self.build_rotation = batch_quaternion_to_rotation_matrix
+        self.build_quaternion = batch_rotation_matrix_to_quaternion
 
         self.opacity_activation = torch.sigmoid
         self.inverse_opacity_activation = inverse_sigmoid
@@ -49,11 +112,13 @@ class GaussianModel:
         self._features_rest = torch.empty(0)
         self._scaling = torch.empty(0)
         self._rotation = torch.empty(0)
+        self._cov_matrix = torch.empty(0)
         self._opacity = torch.empty(0)
         self.max_radii2D = torch.empty(0)
         self.xyz_gradient_accum = torch.empty(0)
         self.denom = torch.empty(0)
         self.optimizer = None
+        self.stie_optimizer= None
         self.percent_dense = 0
         self.spatial_lr_scale = 0
         self.setup_functions()
@@ -71,6 +136,7 @@ class GaussianModel:
             self.xyz_gradient_accum,
             self.denom,
             self.optimizer.state_dict(),
+            self.stie_optimizer.state_dict(),
             self.spatial_lr_scale,
         )
     
@@ -85,12 +151,14 @@ class GaussianModel:
         self.max_radii2D, 
         xyz_gradient_accum, 
         denom,
-        opt_dict, 
+        opt_dict,
+        lie_opt_dict, 
         self.spatial_lr_scale) = model_args
         self.training_setup(training_args)
         self.xyz_gradient_accum = xyz_gradient_accum
         self.denom = denom
         self.optimizer.load_state_dict(opt_dict)
+        self.stie_optimizer.load_state_dict(lie_opt_dict)
 
     @property
     def get_scaling(self):
@@ -143,13 +211,25 @@ class GaussianModel:
         self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
+        print("rotation initialization: ", self._rotation)
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+        cov_matrix = self.build_rotation(self._rotation)
+        self._cov_matrix = nn.Parameter(cov_matrix.requires_grad_(True))
 
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
+
+        # l = [
+        #     {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
+        #     {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
+        #     {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
+        #     {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
+        #     {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
+        #     {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
+        # ]
 
         l = [
             {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
@@ -160,7 +240,14 @@ class GaussianModel:
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
         ]
 
+        lie_l = [
+            {'params': [self._cov_matrix], 'lr': 0.001, "name": "cov_matrix"},
+        ]
+
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
+        # self.lie_optimizer = LieGroupSGD(lie_l, lr=0.0, scheme='momentumless')
+        self.stie_optimizer = StiefelAdam(lie_l, lr=0.01, epsilon=1e-15)
+
         self.xyz_scheduler_args = get_expon_lr_func(lr_init=training_args.position_lr_init*self.spatial_lr_scale,
                                                     lr_final=training_args.position_lr_final*self.spatial_lr_scale,
                                                     lr_delay_mult=training_args.position_lr_delay_mult,
@@ -270,6 +357,7 @@ class GaussianModel:
                 optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
 
+
     def _prune_optimizer(self, mask):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
@@ -298,9 +386,9 @@ class GaussianModel:
         self._opacity = optimizable_tensors["opacity"]
         self._scaling = optimizable_tensors["scaling"]
         self._rotation = optimizable_tensors["rotation"]
+        self._cov_matrix = optimizable_tensors["cov_matrix"]
 
         self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
-
         self.denom = self.denom[valid_points_mask]
         self.max_radii2D = self.max_radii2D[valid_points_mask]
 
@@ -311,7 +399,6 @@ class GaussianModel:
             extension_tensor = tensors_dict[group["name"]]
             stored_state = self.optimizer.state.get(group['params'][0], None)
             if stored_state is not None:
-
                 stored_state["exp_avg"] = torch.cat((stored_state["exp_avg"], torch.zeros_like(extension_tensor)), dim=0)
                 stored_state["exp_avg_sq"] = torch.cat((stored_state["exp_avg_sq"], torch.zeros_like(extension_tensor)), dim=0)
 
@@ -323,7 +410,6 @@ class GaussianModel:
             else:
                 group["params"][0] = nn.Parameter(torch.cat((group["params"][0], extension_tensor), dim=0).requires_grad_(True))
                 optimizable_tensors[group["name"]] = group["params"][0]
-
         return optimizable_tensors
 
     def densification_postfix(self, new_xyz, new_features_dc, new_features_rest, new_opacities, new_scaling, new_rotation):
@@ -335,12 +421,16 @@ class GaussianModel:
         "rotation" : new_rotation}
 
         optimizable_tensors = self.cat_tensors_to_optimizer(d)
+
         self._xyz = optimizable_tensors["xyz"]
         self._features_dc = optimizable_tensors["f_dc"]
         self._features_rest = optimizable_tensors["f_rest"]
         self._opacity = optimizable_tensors["opacity"]
         self._scaling = optimizable_tensors["scaling"]
         self._rotation = optimizable_tensors["rotation"]
+
+        cov_matrix = self.build_rotation(self._rotation)
+        self._cov_matrix = nn.Parameter(cov_matrix.requires_grad_(True))
 
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")

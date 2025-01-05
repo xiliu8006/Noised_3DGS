@@ -37,7 +37,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
-
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
@@ -152,11 +151,22 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     gaussians.reset_opacity()
-
+            
             # Optimizer step
-            if iteration < opt.iterations:
-                gaussians.optimizer.step()
-                gaussians.optimizer.zero_grad(set_to_none = True)
+        if iteration < opt.iterations:
+            gaussians.optimizer.step()
+            cov_matrix, jvp = torch.autograd.functional.jvp(gaussians.build_rotation, gaussians._rotation, gaussians._rotation.grad)
+            # print("cov_matrix is ", cov_matrix)
+            # print("jvp is ", jvp)
+            gaussians._cov_matrix.data = cov_matrix
+            gaussians._cov_matrix.grad = jvp
+            gaussians.stie_optimizer.step()
+            # print("cov_matrix after step is ", gaussians._cov_matrix.data, gaussians._cov_matrix.grad)
+            # print("cov identity check: ", cov_matrix @  gaussians._cov_matrix.data)
+            gaussians._rotation.data = gaussians.build_quaternion(gaussians._cov_matrix)
+            # print("rotation after step is ", gaussians._rotation.data)
+            gaussians.optimizer.zero_grad(set_to_none = True)
+            gaussians.stie_optimizer.zero_grad(set_to_none = True)
 
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
